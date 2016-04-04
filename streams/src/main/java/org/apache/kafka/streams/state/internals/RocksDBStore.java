@@ -26,7 +26,6 @@ import org.apache.kafka.streams.processor.StateStore;
 import org.apache.kafka.streams.state.KeyValueIterator;
 import org.apache.kafka.streams.state.KeyValueStore;
 import org.apache.kafka.streams.state.StateSerdes;
-
 import org.rocksdb.BlockBasedTableConfig;
 import org.rocksdb.CompactionStyle;
 import org.rocksdb.CompressionType;
@@ -39,6 +38,7 @@ import org.rocksdb.WriteBatch;
 import org.rocksdb.WriteOptions;
 
 import java.io.File;
+import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashSet;
@@ -80,8 +80,8 @@ public class RocksDBStore<K, V> implements KeyValueStore<K, V> {
 
     private Set<K> cacheDirtyKeys;
     private MemoryLRUCache<K, RocksDBCacheEntry> cache;
-    private StoreChangeLogger<byte[], byte[]> changeLogger;
-    private StoreChangeLogger.ValueGetter<byte[], byte[]> getter;
+    private StoreChangeLogger<ByteBuffer, byte[]> changeLogger;
+    private StoreChangeLogger.ValueGetter<ByteBuffer, byte[]> getter;
 
     public KeyValueStore<K, V> enableLogging() {
         loggingEnabled = true;
@@ -179,10 +179,13 @@ public class RocksDBStore<K, V> implements KeyValueStore<K, V> {
 
         // value getter should always read directly from rocksDB
         // since it is only for values that are already flushed
-        this.getter = new StoreChangeLogger.ValueGetter<byte[], byte[]>() {
+        this.getter = new StoreChangeLogger.ValueGetter<ByteBuffer, byte[]>() {
             @Override
-            public byte[] get(byte[] key) {
-                return getInternal(key);
+            public byte[] get(ByteBuffer key) {
+                // NOTE: this assumes that key.array() is the entire key.
+                // This is a fragile assumption, but is currently true for all of the keys we create.
+                assert key.remaining() == key.array().length : "ByteBuffer key did not match its 'array()'";
+                return getInternal(key.array());
             }
         };
 
@@ -258,7 +261,7 @@ public class RocksDBStore<K, V> implements KeyValueStore<K, V> {
             putInternal(rawKey, rawValue);
 
             if (loggingEnabled) {
-                changeLogger.add(rawKey);
+                changeLogger.add(ByteBuffer.wrap(rawKey));
                 changeLogger.maybeLogChange(this.getter);
             }
         }
@@ -363,7 +366,7 @@ public class RocksDBStore<K, V> implements KeyValueStore<K, V> {
 
             if (loggingEnabled) {
                 for (KeyValue<byte[], byte[]> kv : putBatch)
-                    changeLogger.add(kv.key);
+                    changeLogger.add(ByteBuffer.wrap(kv.key));
             }
 
             // check all removed entries and remove them in rocksDB
@@ -376,7 +379,7 @@ public class RocksDBStore<K, V> implements KeyValueStore<K, V> {
                 }
 
                 if (loggingEnabled) {
-                    changeLogger.delete(removedKey);
+                    changeLogger.delete(ByteBuffer.wrap(removedKey));
                 }
             }
 

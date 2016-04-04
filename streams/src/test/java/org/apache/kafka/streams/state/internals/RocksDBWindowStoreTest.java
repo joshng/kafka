@@ -37,6 +37,7 @@ import org.junit.Test;
 
 import java.io.File;
 import java.io.IOException;
+import java.nio.ByteBuffer;
 import java.nio.file.Files;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -823,8 +824,9 @@ public class RocksDBWindowStoreTest {
         HashMap<Integer, Set<String>> entriesByKey = new HashMap<>();
 
         for (KeyValue<byte[], byte[]> entry : changeLog) {
-            long timestamp = WindowStoreUtils.timestampFromBinaryKey(entry.key);
-            Integer key = WindowStoreUtils.keyFromBinaryKey(entry.key, serdes);
+            ByteBuffer keyBuf = ByteBuffer.wrap(entry.key);
+            long timestamp = WindowStoreUtils.timestampFromBinaryKey(keyBuf);
+            Integer key = WindowStoreUtils.keyFromBinaryKey(keyBuf, serdes);
             String value = entry.value == null ? null : serdes.valueFrom(entry.value);
 
             Set<String> entries = entriesByKey.get(key);

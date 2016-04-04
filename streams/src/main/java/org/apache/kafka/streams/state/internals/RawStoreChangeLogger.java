@@ -20,24 +20,10 @@ package org.apache.kafka.streams.state.internals;
 import org.apache.kafka.streams.processor.ProcessorContext;
 import org.apache.kafka.streams.state.WindowStoreUtils;
 
-import java.util.Comparator;
+import java.nio.ByteBuffer;
 import java.util.TreeSet;
 
-public class RawStoreChangeLogger extends StoreChangeLogger<byte[], byte[]> {
-
-    private class ByteArrayComparator implements Comparator<byte[]> {
-        @Override
-        public int compare(byte[] left, byte[] right) {
-            for (int i = 0, j = 0; i < left.length && j < right.length; i++, j++) {
-                int a = left[i] & 0xff;
-                int b = right[j] & 0xff;
-
-                if (a != b)
-                    return a - b;
-            }
-            return left.length - right.length;
-        }
-    }
+public class RawStoreChangeLogger extends StoreChangeLogger<ByteBuffer, byte[]> {
 
     public RawStoreChangeLogger(String storeName, ProcessorContext context) {
         this(storeName, context, DEFAULT_WRITE_BATCH_SIZE, DEFAULT_WRITE_BATCH_SIZE);
@@ -50,7 +36,7 @@ public class RawStoreChangeLogger extends StoreChangeLogger<byte[], byte[]> {
 
     @Override
     public void init() {
-        this.dirty = new TreeSet<>(new ByteArrayComparator());
-        this.removed = new TreeSet<>(new ByteArrayComparator());
+        this.dirty = new TreeSet<>(LexicographicByteBufferComparator.INSTANCE);
+        this.removed = new TreeSet<>(LexicographicByteBufferComparator.INSTANCE);
     }
 }

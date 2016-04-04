@@ -30,15 +30,16 @@ public class WindowStoreUtils {
     private static final int TIMESTAMP_SIZE = 8;
 
     /** Inner byte array serde used for segments */
-    public static final Serde<byte[]> INNER_SERDE = Serdes.ByteArray();
+    public static final Serde<byte[]> BYTE_ARRAY_SERDE = Serdes.ByteArray();
+    public static final Serde<ByteBuffer> BYTE_BUFFER_SERDE = Serdes.ByteBuffer();
 
-    /** Inner byte array state serde used for segments */
-    public static final StateSerdes<byte[], byte[]> INNER_SERDES = new StateSerdes<>("", INNER_SERDE, INNER_SERDE);
+    /** Inner state serde used for segments */
+    public static final StateSerdes<ByteBuffer, byte[]> INNER_SERDES = new StateSerdes<>("", BYTE_BUFFER_SERDE, BYTE_ARRAY_SERDE);
 
     @SuppressWarnings("unchecked")
-    public static final KeyValueIterator<byte[], byte[]>[] NO_ITERATORS = (KeyValueIterator<byte[], byte[]>[]) new KeyValueIterator[0];
+    public static final KeyValueIterator<ByteBuffer, byte[]>[] NO_ITERATORS = (KeyValueIterator<ByteBuffer, byte[]>[]) new KeyValueIterator[0];
 
-    public static <K> byte[] toBinaryKey(K key, final long timestamp, final int seqnum, StateSerdes<K, ?> serdes) {
+    public static <K> ByteBuffer toBinaryKey(K key, final long timestamp, final int seqnum, StateSerdes<K, ?> serdes) {
         byte[] serializedKey = serdes.rawKey(key);
 
         ByteBuffer buf = ByteBuffer.allocate(serializedKey.length + TIMESTAMP_SIZE + SEQNUM_SIZE);
@@ -46,18 +47,18 @@ public class WindowStoreUtils {
         buf.putLong(timestamp);
         buf.putInt(seqnum);
 
-        return buf.array();
+        return buf;
     }
 
-    public static <K> K keyFromBinaryKey(byte[] binaryKey, StateSerdes<K, ?> serdes) {
-        byte[] bytes = new byte[binaryKey.length - TIMESTAMP_SIZE - SEQNUM_SIZE];
+    public static <K> K keyFromBinaryKey(ByteBuffer binaryKey, StateSerdes<K, ?> serdes) {
+        byte[] bytes = new byte[binaryKey.remaining() - TIMESTAMP_SIZE - SEQNUM_SIZE];
 
-        System.arraycopy(binaryKey, 0, bytes, 0, bytes.length);
+        binaryKey.duplicate().get(bytes);
 
         return serdes.keyFrom(bytes);
     }
 
-    public static long timestampFromBinaryKey(byte[] binaryKey) {
-        return ByteBuffer.wrap(binaryKey).getLong(binaryKey.length - TIMESTAMP_SIZE - SEQNUM_SIZE);
+    public static long timestampFromBinaryKey(ByteBuffer binaryKey) {
+        return binaryKey.getLong(binaryKey.remaining() - TIMESTAMP_SIZE - SEQNUM_SIZE);
     }
 }
